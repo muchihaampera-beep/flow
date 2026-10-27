@@ -1,0 +1,147 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LINKFLOW</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;min-height:100vh;display:grid;place-items:center;
+ padding:20px;background:#050816;color:#eef7ff;
+ font-family:Arial,sans-serif
+}
+.app{
+ width:100%;max-width:520px;padding:24px;
+ background:#0b1226;border:1px solid #00d9ff;
+ border-radius:20px;box-shadow:0 0 30px #007bff30
+}
+h1{text-align:center;color:#55eaff;letter-spacing:3px}
+p{text-align:center;color:#9fb5d7;font-size:13px}
+input{
+ width:100%;padding:15px;margin:12px 0;
+ background:#050b19;color:white;border:1px solid #34466c;
+ border-radius:10px;font-size:15px
+}
+button{
+ width:100%;padding:14px;margin:5px 0;border:0;
+ border-radius:10px;background:#55eaff;
+ color:#00101b;font-weight:bold
+}
+.secondary{background:#192642;color:white}
+#status,#result{
+ margin-top:15px;padding:13px;border-radius:10px;
+ background:#101d35;font-size:13px;overflow-wrap:anywhere;
+ line-height:1.6
+}
+a{color:#55eaff}
+</style>
+</head>
+<body>
+<main class="app">
+<h1>LINKFLOW</h1>
+<p>UNIVERSAL LINK RESOLVER</p>
+
+<input id="url" type="url"
+ placeholder="Tempel link di sini...">
+
+<button id="process">PROSES LINK</button>
+<button id="clear" class="secondary">BERSIHKAN</button>
+
+<div id="status">Siap menerima link.</div>
+<div id="result" hidden></div>
+
+<p>Memeriksa pengalihan link HTTP publik yang didukung.</p>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+let finalURL="";
+
+async function processLink(){
+ const value=$("url").value.trim();
+ $("result").hidden=true;
+ finalURL="";
+
+ let parsed;
+ try{parsed=new URL(value)}
+ catch{
+  $("status").textContent="Masukkan link yang valid.";
+  return;
+ }
+
+ if(!["http:","https:"].includes(parsed.protocol)){
+  $("status").textContent="Hanya link HTTP/HTTPS yang didukung.";
+  return;
+ }
+
+ $("process").disabled=true;
+ $("status").textContent="Memproses link...";
+
+ try{
+  const response=await fetch(
+   "/.netlify/functions/resolve?url="+
+   encodeURIComponent(parsed.href)
+  );
+  const data=await response.json();
+
+  if(!response.ok)throw Error(data.error||"Gagal memproses.");
+
+  finalURL=data.url;
+  $("status").textContent=
+   "Selesai. Pengalihan terdeteksi: "+data.hops;
+
+  $("result").replaceChildren();
+  const title=document.createElement("b");
+  title.textContent="URL tujuan:";
+  const link=document.createElement("a");
+  link.href=finalURL;
+  link.target="_blank";
+  link.rel="noopener noreferrer";
+  link.textContent=finalURL;
+
+  const open=document.createElement("button");
+  open.className="secondary";
+  open.textContent="BUKA TUJUAN";
+  open.onclick=()=>window.open(finalURL,"_blank","noopener,noreferrer");
+
+  const copy=document.createElement("button");
+  copy.className="secondary";
+  copy.textContent="SALIN URL";
+  copy.onclick=async()=>{
+   try{
+    await navigator.clipboard.writeText(finalURL);
+    $("status").textContent="URL berhasil disalin.";
+   }catch{
+    $("status").textContent="Salin URL dari hasil di atas.";
+   }
+  };
+
+  $("result").append(title,document.createElement("br"),link,
+   document.createElement("br"),open,copy);
+  $("result").hidden=false;
+
+ }catch(error){
+  $("status").textContent="Error: "+error.message;
+ }finally{
+  $("process").disabled=false;
+ }
+}
+
+$("process").onclick=processLink;
+$("url").addEventListener("keydown",e=>{
+ if(e.key==="Enter")processLink();
+});
+$("url").addEventListener("paste",()=>{
+ setTimeout(processLink,200);
+});
+$("clear").onclick=()=>{
+ $("url").value="";
+ $("result").hidden=true;
+ $("status").textContent="Siap menerima link.";
+ finalURL="";
+};
+</script>
+</body>
+</html>

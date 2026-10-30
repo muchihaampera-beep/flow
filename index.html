@@ -723,3 +723,94 @@ renderHistory();
 </script>
 </body>
 </html>
+
+processform
+
+</script>
+$("processForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const lines = $("urls").value
+    .split(/\n/)
+    .map(x => x.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    toast("Masukkan URL dulu");
+    return;
+  }
+
+  if (mode === "single" && lines.length > 1) {
+    toast("Mode Single hanya untuk satu URL");
+    return;
+  }
+
+  const btn = $("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Memproses...";
+
+  try {
+    const response = await fetch(
+      "/.netlify/functions/process",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ urls: lines })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Backend belum tersedia");
+    }
+
+    const data = await response.json();
+    renderResults(data.results || []);
+    saveHistory(data.results || []);
+    toast("Pemrosesan selesai via backend");
+
+  } catch (err) {
+    // Mode lokal: rapikan dan validasi URL
+    const results = lines.map(input => {
+      const candidate =
+        /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(input)
+          ? input
+          : "https://" + input;
+
+      try {
+        const parsed = new URL(candidate);
+
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+          return {
+            input,
+            error: "Hanya URL HTTP/HTTPS yang didukung."
+          };
+        }
+
+        return {
+          input,
+          url: parsed.href
+        };
+
+      } catch {
+        return {
+          input,
+          error: "Format URL tidak valid."
+        };
+      }
+    });
+
+    renderResults(results);
+    saveHistory(results);
+    toast("Selesai dalam mode lokal");
+
+  } finally {
+    btn.disabled = false;
+    btn.textContent =
+      mode === "single"
+        ? "✦ Process link"
+        : "✦ Process bulk links";
+  }
+});
+
